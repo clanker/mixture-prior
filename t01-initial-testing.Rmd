@@ -1,0 +1,307 @@
+---
+title: "Task 1: Getting back into MPDPM research"
+author: Cory Lanker
+date: "8/14/2020"
+output: 
+  html_document:
+    toc: TRUE
+params:
+  a: 10
+---
+
+loads R function 
+```{r setup, include = FALSE, message = FALSE}
+#setwd("/Users/clanker/Dropbox/model/copyv3/testing")
+knitr::opts_chunk$set(cache.path = "/Users/clanker/Dropbox/model/fall20/cache")
+source("../copyv3/R_kbgm_v1809A_new.R")
+library(reticulate)
+#-loads libraries
+#library(mclust)
+#library(cluster)
+#library(MASS)
+#library(mvtnorm)
+#library(dummies)
+#library(tidyverse)
+#library(e1071)
+#library(locfit)
+#library(mgcv)
+#library(FNN)
+#library(randomForest)
+```
+
+# Part 1
+
+Here is some research:
+```{r}
+a <- params$a
+print(a, params$a)
+```
+
+## A figure
+
+A figure is here based on a = `r a`:
+```{r, fig.cap = "Caption: Random data using a seed"}
+set.seed(a)
+plot(rnorm(100), type = "l")
+```
+
+# Part 2 of a = `r a`
+
+A demo.
+
+# Part 3. Other languages.
+```{bash, include = FALSE}
+ls *.Rmd
+```
+
+```{python}
+import numpy as np
+x = "Hello, world"
+print(x)
+a = 10
+print(" Here is a value: {0}".format(a))
+```
+
+```{r echo = FALSE, results = 'asis'}
+# results = 'asis' flag leaves table alone, keeps from further processing.
+library(knitr)
+kable(mtcars[1:5, ], caption = "Car details.")
+```
+
+## Markdown basics
+
+Formatted text:
+
+- *italics*
+- **bold**
+- `code`
+- [a link to a website](http://cran.r-project.org)
+- Equation $E = mc^2$
+- Equation $$\int_0^1 x dx = \tfrac 1 2$$
+
+# Caching help
+
+```{r label-test}
+invX <- xfun::cache_rds({
+  set.seed(a)
+  X <- matrix(rnorm(1000000), 1000, )
+  X <- X + t(X)
+  solve(X)
+},
+rerun = FALSE,
+hash = list(a)
+)
+```
+
+```{r cache-output-check}
+invX[1:5, 1:5]
+```
+
+```{r cache-no-x-output-check}
+#X[1:5, 1:5]
+# Good, when run the first time, there is an X, but then
+#   when the chunk is not rerun, there is correctly no X
+```
+
+
+<!--
+#-EBCP function parameters
+nclust = 10
+
+#-data creation
+seedno = 1
+dd = 3
+d = dd+1
+G = 5
+ng = 40
+sigmamu = 4 
+sigmay = 1 
+sigmax = 1
+set.seed(seedno)
+Mu = mvrnorm(G,rep(0,d),sigmamu^2*diag(d))
+wmat = sigmax^2/(d)*diag(d)
+wmat[1,1] = sigmay^2/(d)
+Sigma = rWishart(G,d,wmat)
+
+dat = matrix(0, 0, d)
+for (i in 1:2){
+	for (j in 1:G){
+		set.seed(1000*seedno+i+10*j)
+		dat = rbind(dat, mvrnorm(i*ng, Mu[j,], Sigma[,,j]))
+	}
+}
+train = dat[1:(G*ng),]
+test = dat[-(1:(G*ng)),]
+ytest <- test[,1]
+test[,1] <- NA
+
+#=end data creation, in dat (train/test split)
+
+#-cov.matrix creation
+crange = 1:10
+priorwt = NULL
+priormat = array(NA, dim=c(d,d,sum(crange)))
+set.seed(seedno)
+biclist = rep(NA,length(crange))
+for (k in crange){
+	out = Mclust(train, G=k,
+		modelNames=c("VVV", "EEV", "VEV", "VVI")) #,"EVI", "VEI"))
+	cat(out$modelName,out$bic,"/ ")
+	biclist[k] = out$bic
+	priorwt = c(priorwt, out$param$pro)
+	priormat[,,1:crange[k]+sum(crange[1:k])-crange[k]] = out$param$variance$sigma[,,]
+}
+bicrank = rank(biclist)
+for (k in crange){
+	isrange=1:crange[k]+sum(crange[1:k])-crange[k]
+	priorwt[isrange] = priorwt[isrange] * bicrank[k] 
+}
+save(dd, d, G, ng, sigmamu, sigmay, sigmax, Mu, Sigma, dat, nclust, priorwt, priormat,
+	file=paste("testcase.dat",sep=""))
+#=end cov.matrix creation, in priormat, priorwt
+
+#-NE:prepare distance plot
+out = daisy(train)
+sm <- diag(nrow(train))
+sm[lower.tri(sm, diag=F)] <- as.double(out)
+sm <- sm + t(sm) - diag(diag(sm))
+xr = 1:nrow(train)
+sid = ceiling(seq(1,nrow(train),length=32))
+#-NE:distance plot
+pdf(paste("testdist.pdf",sep=""))
+par(mfrow=c(8,4),mar=c(.1,.1,.05,.05)*2)
+#set.seed(seedno)
+#sid = sample(1:nrow(train),18)
+for (i in 1:length(sid)){
+	plot(sm[sid[i],],main='',xlab='',ylab='',col=1+floor((xr-1)/length(xr)*G))
+	abline(v=sid[i],lwd=2,col=4)
+}
+dev.off()
+#=end distance plot
+
+#-run EBCP R code on data=train, prior cov.matrices, program parameters(nclust, Burn, B, Thin, seed, iterprint)
+out <- kbgm.fun(X=train, S=priormat, wl=priorwt, n=nclust, Burn=1000, J=50, Thin=100,
+                so.dir='/Users/clanker/Dropbox/model/copyv3/', out.type=1,
+                seed="initial", iterprint=500, Xtest=test)
+
+#-NE:print EBCP output for checking
+priormat*8
+priorwt
+train
+test
+out$index
+out$phi
+Mu
+out$mu
+Sigma
+out$sigma
+out$M
+
+#-NE:plot membership diagnostics
+indtrack = matrix(0,nrow(out$index),nclust)
+for (j in 1:nclust)
+	indtrack[,j] = as.double(rowSums(out$index == (j-1)))
+pdf(paste("testmem.pdf",sep=""))
+par(mfrow=c(1,1), mar=c(1,1,0.1,0.1)*4)
+plot(c(1,nrow(indtrack)), c(0,1.0*sqrt(max(indtrack))),xlab='sample',ylab='membership',type='n')
+abline(h=sqrt(ng), lwd=10, col='orange') 
+for (j in 1:nclust){
+	ksm = ksmooth(1:nrow(indtrack), indtrack[,j], bandwidth=10,x.points=1:nrow(indtrack))	
+	lines(1:nrow(indtrack),sqrt(ksm$y),lwd=2,col=j)
+}
+itertest = setdiff(seq(0,nrow(out$index),by=25),0)
+for (j in 1:ceiling(sqrt(ng)+1))
+	for (k in itertest)
+		text(k,j,sum(indtrack[k,]>j^2))
+dev.off()
+#=end plot membership diagnostics
+
+#-oracle calculation
+ptrue = ytrue = matrix(0, nrow(test), G)
+for (g in 1:G)
+	ptrue[,g] = dmvnorm(test[,-1], mean=Mu[g,-1], sigma=Sigma[-1,-1,g])
+ptrue = ptrue/rowSums(ptrue)
+for (g in 1:G){
+	Xinv = ginv(Sigma[-1,-1,g])
+	xdiff = t(test[,-1]) - Mu[g,-1]
+	ytrue[,g] = Mu[g,1] + t(Sigma[1,-1,g]) %*% Xinv %*% xdiff
+}
+oracle = rowSums(ytrue * ptrue)
+#=end oracle
+
+####
+# second part of program: make prediction given EBCP output
+####
+set.seed(0)
+
+#-calculate predictions for test data for each EBCP output iterate
+# iterate over all samples, i=1, ..., I
+lik = matrix(NA, nrow(test), nclust)
+predmat = lik
+#p = dim(out$mu)[2]
+pred = matrix(NA, nrow(test), nrow(out$index))
+for (i in 1:nrow(out$index)){
+	if ((i+1) %% 50 == 0){
+		cat(i,"")
+		cat(sum((rowMeans(pred[,1:(i-1)]) - oracle)^2)/
+			sum((mean(oracle) - oracle)^2),"")
+		}
+	phi = 1
+	phi2 = 1
+	for (j in 1:nclust){
+		if (j < nclust){
+			phi = phi2 * out$phi[i, j]
+			phi2 = phi2 * (1 - out$phi[i, j])
+		} else {
+			phi = phi2
+		}
+		meanvect = out$mu[i,,j]
+		sigmat <- diag(d)
+		sigmat[upper.tri(sigmat, diag=TRUE)] <- as.double(out$sigma[i,,j])
+		sigmat <- sigmat + t(sigmat) - diag(diag(sigmat))
+		if (d > 2){
+            Xinv = ginv(sigmat[-1,-1])
+            xdiff = t(test[,-1]) - meanvect[2:d]
+            lik[,j] = dmvnorm(t(xdiff), sigma=sigmat[-1,-1])*phi
+			predmat[,j] = meanvect[1] + t(sigmat[1,2:d]) %*% Xinv %*% xdiff
+		} else {
+            lik[,j] = dnorm(test[,-1], mean=meanvect[2], sd=sqrt(sigmat[2,2]))*phi
+			predmat[,j] = meanvect[1] + (sigmat[1,2]/sigmat[2,2]) * (test[,2]-meanvect[2])
+		}
+	}
+	rs = rowSums(lik)
+	pmat = lik/rs
+	pred[,i] = rowSums(pmat * predmat)
+}
+#=end prediction calculation, in pred
+
+#-NE:print output for debugging
+head(pred)
+
+#-calculate final prediction (using average of all iterate prediction values)
+yhat = rowMeans(pred)
+head(yhat)
+
+test[,1] <- ytest
+
+#-calculate error rate for EBCP from oracle values
+bcerr = sum((yhat - oracle)^2)/sum((mean(oracle) - oracle)^2)
+bcerr
+
+#-NE:calculate error rates
+sum((yhat - test[,1])^2)/sum((mean(test[,1]) - test[,1])^2)
+sum((yhat - oracle)^2)/sum((mean(test[,1]) - test[,1])^2)
+sum((test[,1] - oracle)^2)/sum((mean(oracle)-oracle)^2)
+sum((oracle - test[,1])^2)/sum((mean(test[,1]) - test[,1])^2)
+
+pdf("testplot.pdf")
+plot(test[,1],yhat)
+dev.off()
+
+
+#-run EBCP-NK R code on data=train, prior cov.matrices, program parameters(nclust, Burn, B, Thin, seed, iterprint)
+out <- kbgm_nk.fun(X=train, S=priormat, wl=priorwt, n=nclust, Burn=1000, J=50, Thin=100,
+                so.dir='/Users/clanker/Dropbox/model/copyv3/', out.type=1,
+                seed="initial", iterprint=500, Xtest=test)
+-->
+
